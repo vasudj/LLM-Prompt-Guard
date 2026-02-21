@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Prompt-Armor Dashboard</title>
+    <style>
+        body {
+            font-family: Arial;
+            background: #111;
+            color: #00ff88;
+            padding: 20px;
+        }
+        h1 {
+            color: #00ff88;
+        }
+        #log {
+            background: #000;
+            padding: 15px;
+            border: 1px solid #00ff88;
+            height: 400px;
+            overflow-y: scroll;
+        }
+        .entry {
+            margin-bottom: 10px;
+            border-bottom: 1px solid #333;
+            padding-bottom: 5px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🛡️ Prompt-Armor Live Dashboard</h1>
+    <div id="log"></div>
+
+    <script>
+        const logDiv = document.getElementById("log");
+        const ws = new WebSocket("ws://127.0.0.1:8000/ws");
+
+        ws.onmessage = function(event) {
+            const data = JSON.parse(event.data);
+
+            const entry = document.createElement("div");
+            entry.className = "entry";
+            entry.innerHTML = `
+                <strong>Type:</strong> ${data.type}<br>
+                <strong>Original:</strong> ${data.original}<br>
+                <strong>Modified:</strong> ${data.modified}
+            `;
+
+            logDiv.prepend(entry);
+        };
+    </script>
+</body>
+</html>

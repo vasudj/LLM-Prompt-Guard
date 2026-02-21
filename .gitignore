@@ -1,0 +1,6 @@
+venv/
+__pycache__/
+*.pyc
+chrome-proxy-profile/
+analytics.json
+.env
