@@ -1,4 +1,4 @@
-# 🛡️ LLM Prompt-Armor: The Zero-Knowledge LLM AI Proxy
+# 🛡️ LLM Prompt-Armor: LLM AI Proxy
 
 > **Code with AI. Keep your secrets.**
 
