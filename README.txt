@@ -1,46 +1,131 @@
-# 🛡️ LLM Prompt-Armor: The Zero-Knowledge LLM AI Proxy
 
-> **Code with AI. Keep your secrets.**
+---
 
-**Prompt-Armor** is a smart DLP (Data Loss Prevention) middleware that sits between you and Large Language Models (LLMs) like ChatGPT, Gemini, and Claude. It allows developers to use AI tools freely without violating corporate security policies.
+## ⚙️ Tech Stack
 
-## 🛑 The Problem: Breaking the Flow
-Organizations are terrified of data leaks. To stay safe, they often ban AI tools entirely or force developers to manually "redact" sensitive code before pasting it into ChatGPT.
+### Core Proxy Layer
+- **Python 3**
+- **mitmproxy**
+  - HTTP request interception
+  - WebSocket stream handling
+- **Regex-based detection engine**
 
-This **breaks the coder's flow**. It turns a 5-second AI query into a 5-minute manual scrubbing task.
+### Analytics & Dashboard
+- **FastAPI**
+- **WebSockets**
+- **Jinja2 Templates**
+- **Uvicorn**
+- **CORS Middleware**
 
-## ⚡ The Solution: "Hot-Swapping" Secrets
-Prompt-Armor automates privacy so you don't have to think about it. It acts as a **transparent sanitization layer**:
+### Communication
+- Local REST calls using `requests`
+- WebSocket broadcasting for live updates
 
-1.  **Intercept:** As you send a prompt, Prompt-Armor scans it for sensitive data (API Keys, PII, Credit Cards).
-2.  **Alias:** It instantly replaces the secret with a dummy token (e.g., swapping `AKIA...` with `{{AWS_KEY_1}}`).
-3.  **Process:** The AI solves your problem using the alias. **It never sees your real data.**
-4.  **Restore:** When the AI responds, Prompt-Armor catches the alias and "hydrates" it back to the original secret.
+### Security Model
+- In-memory RAM vault
+- No disk persistence
+- No cloud storage
+- No third-party services
 
-**The Result?** You see your real code. The AI sees safe tokens. Your company stays compliant.
+---
 
-## 🚀 Key Features
-- **Zero-Friction Security:** No copy-pasting into scrubbing tools. Just use ChatGPT as normal.
-- **Real-time Interception:** Powered by `mitmproxy` to handle HTTPS traffic seamlessly.
-- **Smart PII Detection:** Auto-detects & redacts:
-  - 🇮🇳 Indian ID (Aadhaar, PAN)
-  - 💳 Financials (Credit Cards, Bank Accounts)
-  - 🔑 Dev Secrets (AWS Keys, JWTs, GitHub Tokens)
-- **Zero-Knowledge Architecture:** Secrets are held in a local, temporary RAM vault. No external server ever touches your PII.
-- **Context-Aware Restoration:** The "Swap Back" mechanism ensures the code you copy from ChatGPT is ready to run immediately.
+## 🧠 Secret & PII Detection
 
-## 🛠️ Installation & Usage
+Secrets are detected using regex patterns defined in `proxy.py`.
 
-1. **Clone & Install:**
-   ```bash
-   git clone [https://github.com/vasudj/Prompt-Armor.git](https://github.com/vasudj/Prompt-Armor.git)
-   pip install -r requirements.txt
+### Supported Types
 
-Install dependencies:
+| Category | Examples |
+|-------|--------|
+| Developer Secrets | AWS keys, OpenAI keys, JWT |
+| Financial Data | Credit cards |
+| Indian PII | PAN |
+| Personal Data | Email, Phone |
 
-pip install -r requirements.txt
-Install the Certificate:
+---
 
-Run mitmweb once to generate certificates.
+## 🔐 Risk Scoring
 
-Install ~/.mitmproxy/mitmproxy-ca-cert.pem to your Trusted Root Authorities.
+Each detected entity contributes to a cumulative risk score.
+
+| Data Type | Risk Score |
+|---------|-----------|
+| Email / Phone | 2 |
+| PAN Card | 5 |
+| JWT Token | 8 |
+| Credit Card | 10 |
+| API Keys | 15 |
+
+**Total Risk = Σ (count × weight)**
+
+Displayed in the dashboard for visibility.
+
+---
+
+## 🔄 Workflow (Detailed)
+
+### 1. Request Interception
+- Outbound POST requests intercepted
+- Only LLM provider domains processed
+- `REQUEST_SEEN` event emitted
+
+### 2. Sanitization
+- Regex scans request body
+- Secrets replaced with tokens (e.g. `{{AWS_ACCESS_KEY_1}}`)
+- Originals stored in RAM vault
+
+### 3. Analytics Emission
+- `SANITIZED_REQUEST` event sent to dashboard
+- Includes types detected and risk score
+
+### 4. LLM Processing
+- LLM receives anonymized prompt only
+- No real secrets transmitted
+
+### 5. Response Restoration
+- Tokens replaced back locally
+- Works for normal & streaming responses
+
+### 6. Live Dashboard Update
+- WebSocket broadcasts updated metrics
+
+---
+
+## 📊 Analytics Dashboard
+
+### Metrics Tracked
+- Total requests
+- Sanitized requests
+- Restored responses
+- Protection rate
+- Average risk score
+
+### Distributions
+- Secret types detected
+- LLM provider usage
+- Daily request activity
+
+---
+
+## 📡 API Reference
+
+### `POST /event`
+Used internally by the proxy to report events.
+
+#### Event Types
+- `REQUEST_SEEN`
+- `SANITIZED_REQUEST`
+- `RESTORED_RESPONSE`
+
+#### Sample Payload
+```json
+{
+  "event_type": "SANITIZED_REQUEST",
+  "timestamp": "2026-02-28T10:15:30Z",
+  "provider": "openai",
+  "types_detected": {
+    "AWS_ACCESS_KEY": 1,
+    "EMAIL": 2
+  },
+  "risk_score": 19
+}
