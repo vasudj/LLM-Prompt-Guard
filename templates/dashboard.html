@@ -1,52 +1,1382 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Prompt-Armor Dashboard</title>
-    <style>
-        body {
-            font-family: Arial;
-            background: #111;
-            color: #00ff88;
-            padding: 20px;
-        }
-        h1 {
-            color: #00ff88;
-        }
-        #log {
-            background: #000;
-            padding: 15px;
-            border: 1px solid #00ff88;
-            height: 400px;
-            overflow-y: scroll;
-        }
-        .entry {
-            margin-bottom: 10px;
-            border-bottom: 1px solid #333;
-            padding-bottom: 5px;
-        }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Prompt Armor — SIEM Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg:        #080c12;
+  --bg2:       #0d1219;
+  --surface:   #111820;
+  --surface2:  #161e28;
+  --border:    rgba(255,255,255,0.07);
+  --border-hi: rgba(0,255,160,0.25);
+  --accent:    #00ffa3;
+  --accent2:   #00c8ff;
+  --danger:    #ff4060;
+  --warn:      #ffaa00;
+  --purple:    #a855f7;
+  --text:      #e2eff0;
+  --muted:     #3d5260;
+  --muted2:    #5a7080;
+  --mono: 'Space Mono', monospace;
+  --ui:   'Syne', sans-serif;
+}
+html { scroll-behavior: smooth; }
+body {
+  font-family: var(--ui);
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  cursor: none;
+  overflow-x: hidden;
+}
+body::before {
+  content: '';
+  position: fixed; inset: 0;
+  background-image:
+    linear-gradient(rgba(0,255,163,0.022) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,255,163,0.022) 1px, transparent 1px);
+  background-size: 52px 52px;
+  pointer-events: none;
+  z-index: 0;
+}
+body::after {
+  content: '';
+  position: fixed; left: 0; right: 0; top: -2px;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  opacity: 0.25;
+  animation: scan 7s linear infinite;
+  pointer-events: none;
+  z-index: 1;
+}
+@keyframes scan { 0% { top: -2px; } 100% { top: 100vh; } }
+
+/* ═══════════════════════════════════
+   INTRO SPLASH SCREEN
+═══════════════════════════════════ */
+#intro-screen {
+  position: fixed; inset: 0; z-index: 10000;
+  background: #040810;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  overflow: hidden;
+}
+#intro-screen::before {
+  content: '';
+  position: absolute; inset: 0;
+  background-image:
+    linear-gradient(rgba(0,255,163,0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,255,163,0.03) 1px, transparent 1px);
+  background-size: 52px 52px;
+  opacity: 0;
+  animation: iGrid .8s ease .1s forwards;
+}
+@keyframes iGrid { to { opacity: 1; } }
+
+.intro-glow {
+  position: absolute;
+  width: 700px; height: 700px; border-radius: 50%;
+  background: radial-gradient(ellipse, rgba(0,255,163,0.07) 0%, transparent 68%);
+  animation: iGlow 2.6s ease-in-out infinite alternate;
+  pointer-events: none;
+}
+@keyframes iGlow {
+  from { transform: scale(0.8); opacity: 0.5; }
+  to   { transform: scale(1.2); opacity: 1; }
+}
+
+.intro-scanline {
+  position: absolute; left: 0; right: 0; height: 2px;
+  background: linear-gradient(90deg, transparent, rgba(0,255,163,0.45), transparent);
+  animation: iScan 1.9s linear .1s infinite;
+  pointer-events: none;
+}
+@keyframes iScan { 0%{top:0;opacity:1;} 95%{opacity:.7;} 100%{top:100%;opacity:0;} }
+
+/* Shield */
+.intro-shield {
+  position: relative; width: 110px; height: 110px;
+  margin-bottom: 36px;
+  opacity: 0;
+  animation: iShield .75s cubic-bezier(.16,1,.3,1) .28s forwards;
+}
+@keyframes iShield {
+  from { opacity:0; transform:scale(.35) rotate(-12deg); }
+  to   { opacity:1; transform:scale(1) rotate(0deg); }
+}
+.intro-shield svg {
+  width: 100%; height: 100%;
+  filter: drop-shadow(0 0 30px rgba(0,255,163,.75));
+}
+
+/* Brand name */
+.intro-brand {
+  font-family: var(--ui);
+  font-size: clamp(3.2rem, 6vw, 5.5rem);
+  font-weight: 800;
+  letter-spacing: -.03em;
+  line-height: 1;
+  display: flex; gap: 0;
+  margin-bottom: 16px;
+  overflow: hidden;
+}
+.intro-brand .word { display: flex; }
+.intro-brand .word + .word { margin-left: .28em; }
+.intro-brand .letter {
+  display: inline-block;
+  opacity: 0; transform: translateY(70px);
+  animation: iLetter .55s cubic-bezier(.16,1,.3,1) forwards;
+}
+/* Prompt stagger */
+.intro-brand .word:first-child .letter:nth-child(1){animation-delay:.52s}
+.intro-brand .word:first-child .letter:nth-child(2){animation-delay:.59s}
+.intro-brand .word:first-child .letter:nth-child(3){animation-delay:.66s}
+.intro-brand .word:first-child .letter:nth-child(4){animation-delay:.73s}
+.intro-brand .word:first-child .letter:nth-child(5){animation-delay:.80s}
+.intro-brand .word:first-child .letter:nth-child(6){animation-delay:.87s}
+/* Armor stagger */
+.intro-brand .word:last-child .letter:nth-child(1){animation-delay:.97s}
+.intro-brand .word:last-child .letter:nth-child(2){animation-delay:1.04s}
+.intro-brand .word:last-child .letter:nth-child(3){animation-delay:1.11s}
+.intro-brand .word:last-child .letter:nth-child(4){animation-delay:1.18s}
+.intro-brand .word:last-child .letter:nth-child(5){animation-delay:1.25s}
+.intro-brand .word:last-child .letter { color: var(--accent); }
+@keyframes iLetter {
+  from { opacity:0; transform:translateY(70px); }
+  to   { opacity:1; transform:translateY(0); }
+}
+
+.intro-tagline {
+  font-family: var(--mono);
+  font-size: .78rem; color: var(--muted2);
+  letter-spacing: .18em; text-transform: uppercase;
+  opacity: 0; margin-bottom: 52px;
+  animation: iFadeUp .6s ease 1.48s forwards;
+}
+.intro-progress-wrap {
+  width: 300px; height: 2px;
+  background: rgba(255,255,255,.06); border-radius: 2px; overflow: hidden;
+  opacity: 0;
+  animation: iFadeUp .4s ease 1.58s forwards;
+}
+.intro-progress-bar {
+  height: 100%; width: 0%;
+  background: linear-gradient(90deg, var(--accent), var(--accent2));
+  border-radius: 2px;
+  box-shadow: 0 0 10px var(--accent);
+  animation: iBar 1.3s cubic-bezier(.4,0,.2,1) 1.68s forwards;
+}
+@keyframes iBar { to { width: 100%; } }
+.intro-status {
+  font-family: var(--mono); font-size: .62rem;
+  color: var(--muted); letter-spacing: .1em;
+  margin-top: 14px; opacity: 0;
+  animation: iFadeUp .4s ease 1.75s forwards;
+}
+@keyframes iFadeUp {
+  from { opacity:0; transform:translateY(10px); }
+  to   { opacity:1; transform:translateY(0); }
+}
+
+#intro-screen.exiting {
+  animation: iExit .72s cubic-bezier(.4,0,1,1) forwards;
+}
+@keyframes iExit {
+  0%   { opacity:1; transform:scale(1); }
+  100% { opacity:0; transform:scale(1.05); pointer-events:none; }
+}
+
+/* Cursor */
+#cursor { position:fixed;top:0;left:0;pointer-events:none;z-index:9999;transform:translate(-50%,-50%); }
+#cursor svg { width:34px;height:34px;filter:drop-shadow(0 0 7px rgba(0,255,163,.65));transition:transform .12s,filter .12s; }
+body:active #cursor svg { transform:scale(.82);filter:drop-shadow(0 0 14px rgba(0,255,163,1)); }
+
+/* Shell */
+.shell { position:relative;z-index:2;max-width:1520px;margin:0 auto;padding:32px 48px 60px; }
+.shell > * { opacity:0; }
+header           { animation: fadeUp .55s ease 3.3s forwards; }
+.stats-row       { animation: fadeUp .55s ease 3.42s forwards; }
+.rt-graph-section{ animation: fadeUp .55s ease 3.54s forwards; }
+.charts-row      { animation: fadeUp .55s ease 3.66s forwards; }
+.bottom-section  { animation: fadeUp .55s ease 3.78s forwards; }
+@keyframes fadeUp {
+  from { opacity:0; transform:translateY(20px); }
+  to   { opacity:1; transform:translateY(0); }
+}
+
+/* Header */
+header { display:flex;align-items:center;justify-content:space-between;margin-bottom:32px;padding-bottom:24px;border-bottom:1px solid var(--border); }
+.logo-wrap { display:flex;align-items:center;gap:16px; }
+.logo-icon { width:52px;height:52px;background:linear-gradient(135deg,#6366f1,#a855f7);border-radius:14px;display:flex;align-items:center;justify-content:center;box-shadow:0 0 22px rgba(168,85,247,.4);flex-shrink:0; }
+.logo-icon svg { width:28px;height:28px; }
+.logo-text h1 { font-size:1.65rem;font-weight:800;color:var(--text);letter-spacing:-.02em;line-height:1; }
+.logo-text p  { font-size:.68rem;color:var(--muted2);font-family:var(--mono);margin-top:4px; }
+.header-right { display:flex;align-items:center;gap:16px; }
+.status-chip { display:flex;align-items:center;gap:7px;font-family:var(--mono);font-size:.7rem;padding:6px 14px;border-radius:100px;border:1px solid var(--border);background:var(--surface);letter-spacing:.04em; }
+.status-chip.active    { color:var(--accent); border-color:rgba(0,255,163,.2); }
+.status-chip.offline   { color:var(--danger); border-color:rgba(255,64,96,.2); }
+.status-chip.connected { color:var(--accent); border-color:rgba(0,255,163,.2); }
+.dot-blink { width:7px;height:7px;border-radius:50%;background:currentColor;animation:blink 1.8s ease-in-out infinite; }
+@keyframes blink { 0%,100%{opacity:1;}50%{opacity:.22;} }
+
+/* Stats */
+.stats-row { display:grid;grid-template-columns:repeat(4,1fr);gap:18px;margin-bottom:24px; }
+.stat-card { background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:22px 24px;position:relative;overflow:hidden;transition:border-color .2s,transform .2s; }
+.stat-card:hover { border-color:var(--border-hi);transform:translateY(-2px); }
+.stat-card::before { content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(--accent),transparent);opacity:0;transition:opacity .2s; }
+.stat-card:hover::before { opacity:1; }
+.stat-label { font-size:.67rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--muted2);margin-bottom:10px; }
+.stat-value { font-family:var(--mono);font-size:1.85rem;font-weight:700;color:var(--text);line-height:1;margin-bottom:6px; }
+.stat-value.cg { color:var(--accent); }
+.stat-value.cb { color:var(--accent2); }
+.stat-value.cw { color:var(--warn); }
+.stat-sub { font-family:var(--mono);font-size:.63rem;color:var(--muted2); }
+@keyframes flashG { 0%{background:rgba(0,255,163,.1);}100%{background:transparent;} }
+.flash { animation:flashG .6s ease; }
+
+/* RT Graph section */
+.rt-graph-section {
+  background:var(--surface);border:1px solid var(--border);border-radius:20px;
+  padding:28px 32px;margin-bottom:24px;position:relative;overflow:hidden;
+}
+.rt-graph-section::after {
+  content:'';position:absolute;inset:0;
+  background:radial-gradient(ellipse 60% 50% at 50% 100%,rgba(0,200,255,0.03),transparent);
+  pointer-events:none;
+}
+.rt-top { display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;position:relative;z-index:1; }
+.rt-left { display:flex;align-items:center;gap:12px; }
+.rt-icon { width:36px;height:36px;border-radius:10px;background:rgba(0,200,255,.1);display:flex;align-items:center;justify-content:center;font-size:.95rem;flex-shrink:0; }
+.rt-title h2 { font-size:1.1rem;font-weight:700;color:var(--text);line-height:1; }
+.rt-title p  { font-size:.67rem;color:var(--muted2);font-family:var(--mono);margin-top:3px; }
+.rt-legend { display:flex;align-items:center;gap:16px; }
+.rt-leg-item { display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:.62rem;color:var(--muted2); }
+.rt-leg-dot { width:10px;height:3px;border-radius:2px; }
+
+/* Canvas wrap */
+.rt-graph-wrap {
+  position:relative;height:175px;z-index:1;
+  background:rgba(0,0,0,0.22);border-radius:10px;overflow:hidden;
+}
+.rt-graph-wrap canvas { position:absolute;inset:0;width:100%!important;height:100%!important; }
+
+.rt-xaxis { display:flex;justify-content:space-between;margin-top:7px;padding:0 2px;position:relative;z-index:1; }
+.rt-xaxis span { font-family:var(--mono);font-size:.58rem;color:var(--muted); }
+
+/* Counters strip */
+.rt-counters {
+  display:flex;gap:0;margin-top:14px;
+  background:rgba(0,0,0,0.2);border-radius:10px;border:1px solid var(--border);
+  overflow:hidden;position:relative;z-index:1;
+}
+.rt-counter-item { display:flex;align-items:center;gap:10px;flex:1;padding:12px 16px; }
+.rt-counter-sep { width:1px;background:var(--border);flex-shrink:0; }
+.rt-counter-dot { width:8px;height:8px;border-radius:50%;flex-shrink:0;animation:blink 2s ease-in-out infinite; }
+.rt-counter-info { display:flex;flex-direction:column;gap:1px; }
+.rt-counter-lbl { font-family:var(--mono);font-size:.58rem;color:var(--muted2);text-transform:uppercase;letter-spacing:.08em; }
+.rt-counter-val { font-family:var(--mono);font-size:.92rem;font-weight:700; }
+.rt-counter-sub { font-family:var(--mono);font-size:.56rem;color:var(--muted); }
+
+/* WS debug */
+.ws-debug { background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:16px 20px;margin-top:16px;position:relative;z-index:1; }
+.ws-dbg-hdr { display:flex;align-items:center;justify-content:space-between;margin-bottom:10px; }
+.ws-dbg-title { display:flex;align-items:center;gap:8px;font-size:.76rem;font-weight:700;color:var(--text); }
+.ws-att { font-family:var(--mono);font-size:.67rem;color:var(--muted2); }
+.ws-log { font-family:var(--mono);font-size:.67rem;max-height:110px;overflow-y:auto;display:flex;flex-direction:column;gap:2px; }
+.ws-log::-webkit-scrollbar { width:3px; }
+.ws-log::-webkit-scrollbar-thumb { background:var(--border);border-radius:2px; }
+.wse { color:var(--muted2);line-height:1.55; }
+.wse.err  { color:var(--danger); }
+.wse.warn { color:var(--warn); }
+.wse.ok   { color:var(--accent); }
+.ws-wait  { color:var(--muted);font-style:italic; }
+
+/* Charts row */
+.charts-row { display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px;margin-bottom:24px; }
+.chart-panel { background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:24px 26px; }
+.chart-panel canvas { max-height:190px; }
+
+/* Bottom */
+.bottom-section { display:grid;grid-template-columns:1fr 370px;gap:20px; }
+.req-dir { background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:28px 30px;display:flex;flex-direction:column; }
+.live-badge { display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:.64rem;padding:4px 11px;border-radius:100px;background:rgba(0,255,163,.08);border:1px solid rgba(0,255,163,.2);color:var(--accent);letter-spacing:.06em; }
+.tbl-wrap { flex:1;margin-top:20px;overflow:hidden; }
+.rtbl { width:100%;border-collapse:collapse; }
+.rtbl th { font-size:.63rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--muted2);padding:0 0 12px;text-align:left;border-bottom:1px solid var(--border); }
+.rtbl th:last-child,.rtbl td:last-child { text-align:right; }
+.rtbl td { padding:10px 0;font-size:.74rem;border-bottom:1px solid rgba(255,255,255,.03);vertical-align:middle; }
+.type-tag { display:inline-flex;align-items:center;gap:4px;font-family:var(--mono);font-size:.6rem;padding:2px 7px;border-radius:4px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;margin:1px; }
+.type-tag.email { background:rgba(0,200,255,.12);color:var(--accent2); }
+.type-tag.phone { background:rgba(0,255,163,.12);color:var(--accent); }
+.type-tag.ssn   { background:rgba(255,64,96,.12); color:var(--danger); }
+.type-tag.cc    { background:rgba(255,170,0,.12); color:var(--warn); }
+.type-tag.ip    { background:rgba(168,85,247,.12);color:var(--purple); }
+.type-tag.name  { background:rgba(6,182,212,.12); color:#06b6d4; }
+.type-tag.addr  { background:rgba(249,115,22,.12);color:#f97316; }
+.type-tag.dob   { background:rgba(236,72,153,.12);color:#ec4899; }
+.type-tag.other { background:rgba(255,255,255,.05);color:var(--muted2); }
+.data-cell { font-family:var(--mono);font-size:.68rem;color:var(--muted2);max-width:360px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
+.data-cell b { color:var(--text);font-weight:400; }
+.tok-num  { font-family:var(--mono);font-size:.7rem;color:var(--accent); }
+.time-lbl { font-family:var(--mono);font-size:.65rem;color:var(--muted2); }
+.empty-st { display:flex;flex-direction:column;align-items:center;justify-content:center;padding:48px 0;gap:12px;color:var(--muted); }
+.empty-st .eicon { width:48px;height:48px;background:var(--surface2);border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:1.4rem; }
+.empty-st p { font-size:.72rem;font-family:var(--mono); }
+.tr-anim { animation:rowIn .3s ease; }
+@keyframes rowIn { from{opacity:0;transform:translateX(-8px);}to{opacity:1;transform:translateX(0);} }
+.live-feed { background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:28px 22px;display:flex;flex-direction:column; }
+.feed-count { display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:.72rem;color:var(--muted2); }
+.feed-count .num { font-size:.95rem;color:var(--text);font-weight:700; }
+.feed-dot { width:8px;height:8px;border-radius:50%;background:var(--danger);box-shadow:0 0 8px var(--danger);animation:blink 1.2s ease-in-out infinite; }
+.feed-scroll { flex:1;margin-top:18px;overflow-y:auto;max-height:560px;display:flex;flex-direction:column;gap:8px; }
+.feed-scroll::-webkit-scrollbar { width:3px; }
+.feed-scroll::-webkit-scrollbar-thumb { background:var(--border);border-radius:2px; }
+.fitem { background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:12px 14px;animation:feedIn .3s ease;transition:border-color .15s; }
+.fitem:hover { border-color:rgba(0,255,163,.18); }
+@keyframes feedIn { from{opacity:0;transform:translateY(-5px);}to{opacity:1;transform:translateY(0);} }
+.fitem-top { display:flex;align-items:center;justify-content:space-between;margin-bottom:5px; }
+.fevt { font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;padding:2px 7px;border-radius:4px; }
+.fevt.san { background:rgba(0,255,163,.12);color:var(--accent); }
+.fevt.res { background:rgba(0,200,255,.12);color:var(--accent2); }
+.fevt.thr { background:rgba(255,64,96,.12); color:var(--danger); }
+.ftim { font-family:var(--mono);font-size:.61rem;color:var(--muted); }
+.fdom { font-size:.72rem;font-weight:600;color:var(--text);margin-bottom:4px; }
+.fmeta { font-family:var(--mono);font-size:.61rem;color:var(--muted2);display:flex;gap:8px;flex-wrap:wrap; }
+.frisk.low  { color:var(--accent); }
+.frisk.med  { color:var(--warn); }
+.frisk.high { color:var(--danger); }
+.feed-empty { display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:60px 0;color:var(--muted); }
+.feed-empty svg { opacity:.3; }
+.feed-empty p { font-family:var(--mono);font-size:.68rem; }
+.sec-header { display:flex;align-items:center;justify-content:space-between;margin-bottom:22px; }
+.sec-title  { display:flex;align-items:center;gap:12px; }
+.sec-icon   { width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:.95rem;flex-shrink:0; }
+.sec-icon.g { background:rgba(0,255,163,.1); }
+.sec-icon.b { background:rgba(0,200,255,.1); }
+.sec-icon.p { background:rgba(168,85,247,.1); }
+.sec-icon.c { background:rgba(6,182,212,.1); }
+.sec-title h2 { font-size:1.1rem;font-weight:700;color:var(--text);line-height:1; }
+.sec-title p  { font-size:.67rem;color:var(--muted2);font-family:var(--mono);margin-top:3px; }
+.badge { font-family:var(--mono);font-size:.67rem;padding:5px 12px;border-radius:100px;border:1px solid var(--border-hi);background:rgba(0,255,163,.07);color:var(--accent); }
+::-webkit-scrollbar { width:5px;height:5px; }
+::-webkit-scrollbar-track { background:var(--bg); }
+::-webkit-scrollbar-thumb { background:var(--border);border-radius:3px; }
+</style>
 </head>
 <body>
-    <h1>🛡️ Prompt-Armor Live Dashboard</h1>
-    <div id="log"></div>
 
-    <script>
-        const logDiv = document.getElementById("log");
-        const ws = new WebSocket("ws://127.0.0.1:8000/ws");
+<!-- INTRO SPLASH -->
+<div id="intro-screen">
+  <div class="intro-glow"></div>
+  <div class="intro-scanline"></div>
+  <div class="intro-shield">
+    <svg viewBox="0 0 100 100" fill="none">
+      <path d="M50 6L10 22V52C10 74 28 92 50 98C72 92 90 74 90 52V22L50 6Z"
+            fill="rgba(0,255,163,0.09)" stroke="#00ffa3" stroke-width="2.5" stroke-linejoin="round"/>
+      <path d="M50 16L18 29V52C18 70 32 86 50 91C68 86 82 70 82 52V29L50 16Z"
+            fill="none" stroke="rgba(0,255,163,0.22)" stroke-width="1"/>
+      <polyline points="33,50 44,63 68,37"
+                stroke="#00ffa3" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+  </div>
+  <div class="intro-brand">
+    <div class="word">
+      <span class="letter">P</span><span class="letter">r</span><span class="letter">o</span>
+      <span class="letter">m</span><span class="letter">p</span><span class="letter">t</span>
+    </div>
+    <div class="word">
+      <span class="letter">A</span><span class="letter">r</span><span class="letter">m</span>
+      <span class="letter">o</span><span class="letter">r</span>
+    </div>
+  </div>
+  <div class="intro-tagline">Real-time PII Protection &amp; SIEM Dashboard</div>
+  <div class="intro-progress-wrap">
+    <div class="intro-progress-bar"></div>
+  </div>
+  <div class="intro-status">Initializing security modules…</div>
+</div>
 
-        ws.onmessage = function(event) {
-            const data = JSON.parse(event.data);
+<!-- CURSOR -->
+<div id="cursor">
+  <svg viewBox="0 0 36 36" fill="none">
+    <path d="M18 3L5 8.5V18.5C5 25.5 11 31.5 18 33.5C25 31.5 31 25.5 31 18.5V8.5L18 3Z"
+          fill="rgba(0,255,163,0.1)" stroke="#00ffa3" stroke-width="1.5" stroke-linejoin="round"/>
+    <polyline points="12,18 16,22 24,13" stroke="#00ffa3" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  </svg>
+</div>
 
-            const entry = document.createElement("div");
-            entry.className = "entry";
-            entry.innerHTML = `
-                <strong>Type:</strong> ${data.type}<br>
-                <strong>Original:</strong> ${data.original}<br>
-                <strong>Modified:</strong> ${data.modified}
-            `;
+<div class="shell">
 
-            logDiv.prepend(entry);
-        };
-    </script>
+  <header>
+    <div class="logo-wrap">
+      <div class="logo-icon">
+        <svg viewBox="0 0 28 28" fill="none">
+          <path d="M14 2L3 7V15C3 21 8 26 14 28C20 26 25 21 25 15V7L14 2Z" fill="rgba(255,255,255,0.15)" stroke="white" stroke-width="1.2"/>
+          <polyline points="9,14 12.5,18 19,11" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+      <div class="logo-text">
+        <h1>Prompt Armor</h1>
+        <p>One request · one entry · exact data</p>
+      </div>
+    </div>
+    <div class="header-right">
+      <div class="status-chip active"><span class="dot-blink"></span> Active</div>
+      <div class="status-chip offline" id="ws-chip"><span>⚡</span><span id="ws-chip-lbl">Disconnected</span></div>
+    </div>
+  </header>
+
+  <div class="stats-row">
+    <div class="stat-card" id="sc-total">
+      <div class="stat-label">Total Requests</div>
+      <div class="stat-value" id="s-total">0</div>
+      <div class="stat-sub">All-time intercepts</div>
+    </div>
+    <div class="stat-card" id="sc-san">
+      <div class="stat-label">Total Sanitized</div>
+      <div class="stat-value cg" id="s-san">0</div>
+      <div class="stat-sub">PII removed</div>
+    </div>
+    <div class="stat-card" id="sc-rate">
+      <div class="stat-label">Protection Rate</div>
+      <div class="stat-value cb" id="s-rate">0%</div>
+      <div class="stat-sub">Coverage</div>
+    </div>
+    <div class="stat-card" id="sc-risk">
+      <div class="stat-label">Avg Risk Score</div>
+      <div class="stat-value cw" id="s-risk">0</div>
+      <div class="stat-sub">Per request</div>
+    </div>
+  </div>
+
+  <!-- RT GRAPH -->
+  <div class="rt-graph-section">
+    <div class="rt-top">
+      <div class="rt-left">
+        <div class="rt-icon">📊</div>
+        <div class="rt-title">
+          <h2>Real-Time Activity</h2>
+          <p>Total requests vs sanitized · live rolling 60s</p>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:20px;">
+        <div class="rt-legend">
+          <div class="rt-leg-item">
+            <div class="rt-leg-dot" style="background:#00c8ff;box-shadow:0 0 5px #00c8ff;"></div>Total Requests
+          </div>
+          <div class="rt-leg-item">
+            <div class="rt-leg-dot" style="background:#00ffa3;box-shadow:0 0 5px #00ffa3;"></div>Sanitized
+          </div>
+        </div>
+        <div class="badge" id="req-badge">0 requests</div>
+      </div>
+    </div>
+
+    <div class="rt-graph-wrap" id="rt-graph-wrap">
+      <canvas id="rtBarCanvas"></canvas>
+      <canvas id="rtLineCanvas"></canvas>
+    </div>
+    <div class="rt-xaxis" id="rt-xaxis"></div>
+
+    <div class="rt-counters">
+      <div class="rt-counter-item">
+        <div class="rt-counter-dot" style="background:#00c8ff;box-shadow:0 0 6px #00c8ff;"></div>
+        <div class="rt-counter-info">
+          <span class="rt-counter-lbl">Total / 60s</span>
+          <span class="rt-counter-val" id="rc-total" style="color:#00c8ff;">0</span>
+          <span class="rt-counter-sub">rolling window</span>
+        </div>
+      </div>
+      <div class="rt-counter-sep"></div>
+      <div class="rt-counter-item">
+        <div class="rt-counter-dot" style="background:#00ffa3;box-shadow:0 0 6px #00ffa3;"></div>
+        <div class="rt-counter-info">
+          <span class="rt-counter-lbl">Sanitized / 60s</span>
+          <span class="rt-counter-val" id="rc-san" style="color:#00ffa3;">0</span>
+          <span class="rt-counter-sub">rolling window</span>
+        </div>
+      </div>
+      <div class="rt-counter-sep"></div>
+      <div class="rt-counter-item">
+        <div class="rt-counter-dot" style="background:#ffaa00;box-shadow:0 0 6px #ffaa00;"></div>
+        <div class="rt-counter-info">
+          <span class="rt-counter-lbl">Input Tokens</span>
+          <span class="rt-counter-val" id="t-in" style="color:#ffaa00;">0</span>
+          <span class="rt-counter-sub">cumulative</span>
+        </div>
+      </div>
+      <div class="rt-counter-sep"></div>
+      <div class="rt-counter-item">
+        <div class="rt-counter-dot" style="background:#a855f7;box-shadow:0 0 6px #a855f7;"></div>
+        <div class="rt-counter-info">
+          <span class="rt-counter-lbl">Output Tokens</span>
+          <span class="rt-counter-val" id="t-out" style="color:#a855f7;">0</span>
+          <span class="rt-counter-sub">cumulative</span>
+        </div>
+      </div>
+      <div class="rt-counter-sep"></div>
+      <div class="rt-counter-item">
+        <div class="rt-counter-dot" style="background:#ff4060;box-shadow:0 0 6px #ff4060;"></div>
+        <div class="rt-counter-info">
+          <span class="rt-counter-lbl">Total Tokens</span>
+          <span class="rt-counter-val" id="t-tot" style="color:#ff4060;">0</span>
+          <span class="rt-counter-sub">cumulative</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="ws-debug">
+      <div class="ws-dbg-hdr">
+        <div class="ws-dbg-title"><span>🔵</span> WebSocket Debug</div>
+        <div class="ws-att">Attempts: <span id="ws-att">0</span></div>
+      </div>
+      <div class="ws-log" id="ws-log"><div class="wse ws-wait">Waiting for connection…</div></div>
+    </div>
+  </div>
+
+  <!-- Charts -->
+  <div class="charts-row">
+    <div class="chart-panel">
+      <div class="sec-header" style="margin-bottom:14px;">
+        <div class="sec-title"><div class="sec-icon g">📈</div><div><h2 style="font-size:.95rem;">Daily Activity</h2><p>Secured per day</p></div></div>
+      </div>
+      <canvas id="dailyChart"></canvas>
+    </div>
+    <div class="chart-panel">
+      <div class="sec-header" style="margin-bottom:14px;">
+        <div class="sec-title"><div class="sec-icon b">🔢</div><div><h2 style="font-size:.95rem;">Type Distribution</h2><p>PII categories</p></div></div>
+      </div>
+      <canvas id="typeChart"></canvas>
+    </div>
+    <div class="chart-panel">
+      <div class="sec-header" style="margin-bottom:14px;">
+        <div class="sec-title"><div class="sec-icon p">🌐</div><div><h2 style="font-size:.95rem;">Provider Split</h2><p>AI traffic share</p></div></div>
+      </div>
+      <canvas id="provChart"></canvas>
+    </div>
+  </div>
+
+  <!-- Bottom -->
+  <div class="bottom-section">
+    <div class="req-dir">
+      <div class="sec-header">
+        <div class="sec-title"><div class="sec-icon b">≡</div><div><h2>Request Directory</h2><p>One entry per request · type · data · tokens</p></div></div>
+        <div class="live-badge"><span class="dot-blink" style="width:6px;height:6px;"></span> live</div>
+      </div>
+      <div class="tbl-wrap">
+        <table class="rtbl">
+          <thead><tr><th>Type</th><th>Data (Exact User Input)</th><th>Risk</th><th>Tokens</th><th>Time</th></tr></thead>
+          <tbody id="rtbody">
+            <tr id="empty-row"><td colspan="5"><div class="empty-st"><div class="eicon">🖥️</div><p>No requests yet</p></div></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="live-feed">
+      <div class="sec-header">
+        <div class="sec-title"><div class="sec-icon c">📡</div><div><h2>Live Request Feed</h2><p>Real-time user requests</p></div></div>
+        <div class="feed-count"><span class="num" id="feed-num">0</span><span class="feed-dot"></span></div>
+      </div>
+      <div class="feed-scroll" id="feed-scroll">
+        <div class="feed-empty" id="feed-empty">
+          <svg width="38" height="38" viewBox="0 0 38 38" fill="none">
+            <circle cx="19" cy="19" r="17" stroke="#3d5260" stroke-width="2"/>
+            <path d="M19 11V19L23 23" stroke="#3d5260" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+          <p>Waiting for events…</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- end .shell -->
+
+<script>
+/* ════════════════════════════════════════════════════════════════════
+   PROMPT ARMOR — FIXED DASHBOARD  v5
+   ════════════════════════════════════════════════════════════════════
+   FIXES:
+   1. Single unified WS message handler — no duplicate systems
+   2. api.py sends {"summary":{...}, "daily_counts":{...}, ...}
+      → handleSnapshot() processes it, does proper delta-diffing
+   3. rtPush() called on EVERY delta (including first snapshot if
+      total_requests > 0)
+   4. daily_counts from api.py is { "2024-01-01": int } — handled
+   5. total_requests increments on SANITIZED_REQUEST too (api.py fix
+      embedded in payload handling)
+   6. Graph IDLE=breathing sine, ACTIVE=vivid spike, COOLING=decay
+   7. Demo mode uses handleSnapshot() with realistic cumulative state
+════════════════════════════════════════════════════════════════════ */
+
+/* ── INTRO dismiss ── */
+setTimeout(() => {
+  const el = document.getElementById('intro-screen');
+  if (!el) return;
+  el.classList.add('exiting');
+  setTimeout(() => el.remove(), 720);
+}, 3200);
+
+/* ── Custom cursor ── */
+const cursor = document.getElementById('cursor');
+document.addEventListener('mousemove', e => {
+  cursor.style.left = e.clientX + 'px';
+  cursor.style.top  = e.clientY + 'px';
+});
+
+/* ════════════════════════════════════════════════════════
+   GRAPH ENGINE
+   ════════════════════════════════════════════════════════
+   · rAF loop runs at 60fps — graph NEVER freezes
+   · IDLE:    sine-wave breathing bars + slow teal line
+   · ACTIVE:  on rtPush() → bars spike bright + tall,
+              green line jumps, pulse ring expands, canvas flashes
+   · COOLING: blend decays smoothly back to IDLE over 3s
+*/
+
+const RT_POINTS   = 100;
+const COOLDOWN_MS = 3000;
+
+/* Ring buffer — _idle=true means synthetic/no-data frame */
+const rtData = Array.from({length: RT_POINTS + 80}, (_, i) => ({
+  total: 0, sanitized: 0,
+  ts: Date.now() - (RT_POINTS + 79 - i) * 300,
+  _idle: true
+}));
+let rtHead = rtData.length - 1;
+
+/* Rolling max decays slowly so spikes always look proportional */
+let rollingMaxTotal = 5;
+let rollingMaxSan   = 5;
+
+/* State machine */
+const ST = { IDLE: 0, ACTIVE: 1, COOLING: 2 };
+let gState      = ST.IDLE;
+let lastEventTs = 0;       /* performance.now() of last rtPush */
+let blend       = 0;       /* 0 = fully idle, 1 = fully active */
+
+/* Scroll & animation phases */
+let scrollPx  = 0;
+let idlePhase = 0;
+let barPhase  = 0;
+
+/* Pulse rings spawned on each rtPush */
+let pulseRings = [];
+
+/* Token counters (cumulative) */
+let tokIn = 0, tokOut = 0;
+
+/* Previous snapshot for delta computation */
+let prevSnap = null;   /* { total_requests, total_sanitized, total_restored } */
+
+/* Canvas refs */
+const barCanvas  = document.getElementById('rtBarCanvas');
+const lineCanvas = document.getElementById('rtLineCanvas');
+const wrap       = document.getElementById('rt-graph-wrap');
+
+function resizeCanvases() {
+  const w = wrap.clientWidth, h = wrap.clientHeight;
+  barCanvas.width = lineCanvas.width = w;
+  barCanvas.height = lineCanvas.height = h;
+}
+resizeCanvases();
+window.addEventListener('resize', resizeCanvases);
+
+function clamp01(t)     { return Math.max(0, Math.min(1, t)); }
+function smoothstep(t)  { t = clamp01(t); return t * t * (3 - 2 * t); }
+
+/* ── Push one REAL data point into ring buffer ── */
+function rtPush(total, sanitized) {
+  const now = performance.now();
+
+  rtHead = (rtHead + 1) % rtData.length;
+  rtData[rtHead] = { total, sanitized, ts: Date.now(), _idle: false };
+
+  /* Grow rolling max instantly, decay slowly over time */
+  rollingMaxTotal = Math.max(rollingMaxTotal * 0.88, total, 4);
+  rollingMaxSan   = Math.max(rollingMaxSan   * 0.88, sanitized, 3);
+
+  /* Activate graph */
+  lastEventTs = now;
+  gState = ST.ACTIVE;
+  blend  = Math.min(1, blend + 0.5);   /* instant jump toward active */
+
+  /* Pulse ring at rightmost point */
+  const W = barCanvas.width, H = barCanvas.height;
+  const gH = H - 16;
+  const slotW = W / RT_POINTS;
+  const rx = W - slotW / 2;
+  const sanRatio = clamp01(sanitized / Math.max(1, rollingMaxSan));
+  const ry = 10 + gH * (1 - (0.30 + sanRatio * 0.70));
+  pulseRings.push({ ts: now, x: rx, y: ry, isSan: sanitized > 0 });
+  if (pulseRings.length > 6) pulseRings.shift();
+
+  refreshGraphCounters();
+}
+
+/* ── Stamp idle frame (called when scroll advances one slot) ── */
+function stampIdle() {
+  rtHead = (rtHead + 1) % rtData.length;
+  rtData[rtHead] = { total: 0, sanitized: 0, ts: Date.now(), _idle: true };
+  rollingMaxTotal = Math.max(4, rollingMaxTotal * 0.998);
+  rollingMaxSan   = Math.max(3, rollingMaxSan   * 0.998);
+}
+
+function getView() {
+  const len = rtData.length;
+  return Array.from({ length: RT_POINTS }, (_, i) =>
+    rtData[(rtHead - RT_POINTS + 1 + i + len * 4) % len]
+  );
+}
+
+function refreshGraphCounters() {
+  const view = getView();
+  const sumT = view.reduce((s, d) => s + (d._idle ? 0 : d.total), 0);
+  const sumS = view.reduce((s, d) => s + (d._idle ? 0 : d.sanitized), 0);
+  document.getElementById('rc-total').textContent = sumT.toLocaleString();
+  document.getElementById('rc-san').textContent   = sumS.toLocaleString();
+}
+
+/* ── rAF main loop (never stops) ── */
+function rtLoop(now) {
+  requestAnimationFrame(rtLoop);
+
+  /* Blend toward target based on state */
+  const sinceEvent = now - lastEventTs;
+
+  if (gState === ST.ACTIVE) {
+    blend = Math.min(1, blend + 0.08);
+    if (sinceEvent > 200) gState = ST.COOLING;
+  } else if (gState === ST.COOLING) {
+    const frac = clamp01((sinceEvent - 200) / COOLDOWN_MS);
+    blend = 1 - smoothstep(frac);
+    if (frac >= 1) { gState = ST.IDLE; blend = 0; }
+  } else {
+    blend = Math.max(0, blend - 0.018);
+  }
+
+  /* Scroll: idle=slow, active=fast */
+  const speed = 0.5 + blend * 2.8;
+  scrollPx += speed;
+  const slotW = barCanvas.width / RT_POINTS;
+  if (scrollPx >= slotW) { scrollPx -= slotW; stampIdle(); }
+
+  idlePhase += 0.02;
+  barPhase  += 0.03;
+
+  drawFrame(now);
+}
+
+/* ── Draw one frame ── */
+function drawFrame(now) {
+  const W = barCanvas.width, H = barCanvas.height;
+  const bCtx = barCanvas.getContext('2d');
+  const lCtx = lineCanvas.getContext('2d');
+  bCtx.clearRect(0, 0, W, H);
+  lCtx.clearRect(0, 0, W, H);
+
+  const PT = 10, PB = 6;
+  const gH = H - PT - PB;
+  const slotW = W / RT_POINTS;
+  const shift = scrollPx;
+  const view  = getView();
+
+  /* BG flash when active */
+  if (blend > 0.08) {
+    bCtx.fillStyle = `rgba(0,185,255,${(blend * 0.05).toFixed(3)})`;
+    bCtx.fillRect(0, 0, W, H);
+  }
+
+  /* ── GRID ── */
+  const ga = 0.04 + blend * 0.04;
+  bCtx.strokeStyle = `rgba(255,255,255,${ga.toFixed(3)})`; bCtx.lineWidth = 1;
+  for (let r = 0; r <= 4; r++) {
+    const y = PT + (r / 4) * gH;
+    bCtx.beginPath(); bCtx.moveTo(0, y); bCtx.lineTo(W, y); bCtx.stroke();
+  }
+  bCtx.strokeStyle = `rgba(255,255,255,${(ga * 0.4).toFixed(3)})`;
+  for (let i = 0; i < RT_POINTS; i += 20) {
+    const x = i * slotW - shift;
+    if (x < 0 || x > W) continue;
+    bCtx.beginPath(); bCtx.moveTo(x, PT); bCtx.lineTo(x, PT + gH); bCtx.stroke();
+  }
+
+  /* ── BARS (total requests) ── */
+  for (let i = 0; i < RT_POINTS; i++) {
+    const d = view[i];
+    const x = i * slotW - shift;
+    if (x + slotW < 0 || x > W) continue;
+
+    let barH;
+    if (d._idle || d.total === 0) {
+      /* Idle breathing bars — always visible 12–38% height */
+      const wave = (Math.sin(barPhase + i * 0.30) * 0.5 + 0.5);
+      barH = (0.12 + wave * 0.26) * gH * (1 - blend * 0.7);
+    } else {
+      /* Real data — minimum 40% height, scales to 100% */
+      const ratio = clamp01(d.total / Math.max(1, rollingMaxTotal));
+      barH = (0.40 + ratio * 0.60) * gH;
+    }
+
+    const y = PT + gH - barH;
+
+    /* Color transitions: dim grey-blue → vivid bright cyan */
+    const topG = Math.round(120 + blend * 85);
+    const topB = Math.round(185 + blend * 70);
+    const topA = (0.22 + blend * 0.58).toFixed(2);
+
+    const grad = bCtx.createLinearGradient(0, y, 0, PT + gH);
+    grad.addColorStop(0,   `rgba(0,${topG},${topB},${topA})`);
+    grad.addColorStop(0.45,`rgba(0,${Math.round(topG * 0.65)},${topB},${(parseFloat(topA) * 0.55).toFixed(2)})`);
+    grad.addColorStop(1,   `rgba(0,25,70,0.04)`);
+    bCtx.fillStyle = grad;
+    bCtx.fillRect(Math.floor(x) + 1, Math.floor(y),
+                  Math.max(1, Math.floor(slotW) - 2), Math.ceil(barH));
+
+    /* Bright cap on real-data bars */
+    if (!d._idle && d.total > 0 && blend > 0.2) {
+      bCtx.fillStyle = `rgba(0,${topG},${topB},${(blend * 0.9).toFixed(2)})`;
+      bCtx.fillRect(Math.floor(x) + 1, Math.floor(y),
+                    Math.max(1, Math.floor(slotW) - 2), 2);
+    }
+  }
+
+  /* ── BASE GLOW LINE (bottom) ── */
+  bCtx.strokeStyle = `rgba(0,175,255,${(0.2 + blend * 0.35).toFixed(2)})`;
+  bCtx.lineWidth = 1.5;
+  bCtx.shadowColor = `rgba(0,200,255,${(0.4 + blend * 0.4).toFixed(2)})`;
+  bCtx.shadowBlur = 4 + blend * 8;
+  bCtx.beginPath(); bCtx.moveTo(0, PT + gH); bCtx.lineTo(W, PT + gH); bCtx.stroke();
+  bCtx.shadowBlur = 0;
+
+  /* ── GREEN LINE (sanitized count) ── */
+  function lineY(i) {
+    const d = view[i];
+    /* Idle: slow sine wave riding at 55–75% down */
+    const wave = Math.sin(idlePhase + i * 0.11) * 0.5 + 0.5;
+    const idleY = PT + gH * (0.58 - wave * 0.20);
+
+    if (d._idle || d.total === 0) {
+      /* Push idle line toward bottom when active data is flowing */
+      const bottomY = PT + gH - 3;
+      return idleY * (1 - blend) + bottomY * blend;
+    } else {
+      const ratio  = clamp01(d.sanitized / Math.max(1, rollingMaxSan));
+      /* Minimum 35% above bottom so even ratio=0 sanitized is visible */
+      const activeY = PT + gH - (0.35 + ratio * 0.65) * gH;
+      return idleY * (1 - blend) + activeY * blend;
+    }
+  }
+  function ptx(i) { return i * slotW + slotW / 2 - shift; }
+
+  lCtx.save();
+  lCtx.beginPath(); lCtx.rect(0, PT - 4, W, gH + 6); lCtx.clip();
+
+  /* Line color: muted teal (idle) → vivid #00ffa3 (active) */
+  const lG = Math.round(180 + blend * 75);
+  const lB = Math.round(148 + blend * 15);
+  const lA = (0.5 + blend * 0.5).toFixed(2);
+  const lineCol = `rgba(0,${lG},${lB},${lA})`;
+
+  /* Area fill */
+  lCtx.beginPath(); lCtx.moveTo(ptx(0), PT + gH);
+  for (let i = 0; i < RT_POINTS; i++) {
+    const x = ptx(i), y = lineY(i);
+    if (i === 0) lCtx.lineTo(x, y);
+    else {
+      const px = ptx(i - 1), py = lineY(i - 1);
+      lCtx.bezierCurveTo((px + x) / 2, py, (px + x) / 2, y, x, y);
+    }
+  }
+  lCtx.lineTo(ptx(RT_POINTS - 1), PT + gH); lCtx.closePath();
+  const af = lCtx.createLinearGradient(0, PT, 0, PT + gH);
+  af.addColorStop(0,    `rgba(0,${lG},${lB},${(0.14 + blend * 0.22).toFixed(2)})`);
+  af.addColorStop(0.6,  `rgba(0,${lG},${lB},0.02)`);
+  af.addColorStop(1,    `rgba(0,${lG},${lB},0)`);
+  lCtx.fillStyle = af; lCtx.fill();
+
+  /* Line stroke */
+  lCtx.beginPath();
+  for (let i = 0; i < RT_POINTS; i++) {
+    const x = ptx(i), y = lineY(i);
+    if (i === 0) lCtx.moveTo(x, y);
+    else {
+      const px = ptx(i - 1), py = lineY(i - 1);
+      lCtx.bezierCurveTo((px + x) / 2, py, (px + x) / 2, y, x, y);
+    }
+  }
+  lCtx.strokeStyle = lineCol;
+  lCtx.lineWidth   = 1.8 + blend * 1.5;
+  lCtx.shadowColor = `rgba(0,${lG},${lB},${(0.3 + blend * 0.6).toFixed(2)})`;
+  lCtx.shadowBlur  = 3 + blend * 14;
+  lCtx.stroke(); lCtx.shadowBlur = 0;
+
+  /* ── Pulse rings ── */
+  pulseRings = pulseRings.filter(r => now - r.ts < 1000);
+  pulseRings.forEach(r => {
+    const frac   = (now - r.ts) / 1000;
+    const radius = 3 + frac * 32;
+    const alpha  = (1 - frac) * 0.65;
+    lCtx.beginPath(); lCtx.arc(r.x, r.y, radius, 0, Math.PI * 2);
+    lCtx.strokeStyle = r.isSan
+      ? `rgba(0,255,163,${alpha.toFixed(3)})`
+      : `rgba(0,200,255,${alpha.toFixed(3)})`;
+    lCtx.lineWidth = 2.5 * (1 - frac) + 0.5;
+    lCtx.stroke();
+  });
+
+  /* ── Live cursor dot ── */
+  const cx = ptx(RT_POINTS - 1);
+  const cy = lineY(RT_POINTS - 1);
+  const dotR = 3 + blend * 3.5;
+  lCtx.beginPath(); lCtx.arc(cx, cy, dotR, 0, Math.PI * 2);
+  lCtx.fillStyle   = lineCol;
+  lCtx.shadowColor = lineCol;
+  lCtx.shadowBlur  = 5 + blend * 18;
+  lCtx.fill(); lCtx.shadowBlur = 0;
+
+  /* ── State badge (top-left) ── */
+  const stTxt = gState === ST.IDLE ? 'IDLE' : gState === ST.ACTIVE ? 'ACTIVE' : 'COOLING';
+  const stCol = gState === ST.IDLE
+    ? 'rgba(80,110,130,0.7)'
+    : gState === ST.ACTIVE
+      ? 'rgba(0,255,163,0.95)'
+      : 'rgba(0,200,255,0.8)';
+  lCtx.font      = '700 9px "Space Mono",monospace';
+  lCtx.fillStyle = stCol;
+  lCtx.fillText('● ' + stTxt, 8, PT + 14);
+
+  lCtx.restore();
+}
+
+/* ── X-axis timestamps ── */
+function updateXAxis() {
+  const view  = getView();
+  const xaxis = document.getElementById('rt-xaxis');
+  xaxis.innerHTML = '';
+  [0, 25, 50, 75, 99].forEach(i => {
+    const span = document.createElement('span');
+    span.textContent = new Date(view[i].ts).toLocaleTimeString([], {
+      hour: '2-digit', minute: '2-digit', second: '2-digit'
+    });
+    xaxis.appendChild(span);
+  });
+}
+setInterval(updateXAxis, 1000);
+
+/* Start rAF loop */
+requestAnimationFrame(rtLoop);
+
+/* ════════════════════════════════════════════════════════
+   CHART.JS SETUP
+════════════════════════════════════════════════════════ */
+Chart.defaults.color       = '#3d5260';
+Chart.defaults.font.family = "'Space Mono',monospace";
+Chart.defaults.font.size   = 10;
+const COLORS = ['#00ffa3','#00c8ff','#ffaa00','#ff4060','#a855f7','#f97316','#ec4899','#06b6d4'];
+
+const dailyChart = new Chart(document.getElementById('dailyChart'), {
+  type: 'line',
+  data: { labels: [], datasets: [
+    { label:'Sanitized', data:[], borderColor:'#00ffa3', backgroundColor:'rgba(0,255,163,0.07)',
+      borderWidth:2, pointBackgroundColor:'#00ffa3', pointRadius:3, tension:0.4, fill:true },
+    { label:'Total',     data:[], borderColor:'#00c8ff', backgroundColor:'rgba(0,200,255,0.04)',
+      borderWidth:1.5, pointBackgroundColor:'#00c8ff', pointRadius:2, tension:0.4, fill:true }
+  ]},
+  options: { responsive:true, plugins:{ legend:{ display:true, labels:{color:'#5a7080',boxWidth:10,padding:14} } },
+    scales:{ x:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{maxRotation:0,maxTicksLimit:7}},
+             y:{grid:{color:'rgba(255,255,255,0.04)'},beginAtZero:true} } }
+});
+
+const typeChart = new Chart(document.getElementById('typeChart'), {
+  type: 'bar',
+  data: { labels: [], datasets: [{ label:'Count', data:[], backgroundColor:COLORS, borderRadius:5, borderSkipped:false }] },
+  options: { responsive:true, plugins:{legend:{display:false}},
+    scales:{ x:{grid:{display:false}}, y:{grid:{color:'rgba(255,255,255,0.04)'},beginAtZero:true} } }
+});
+
+const provChart = new Chart(document.getElementById('provChart'), {
+  type: 'doughnut',
+  data: { labels: [], datasets: [{ data:[], backgroundColor:COLORS, borderColor:'#111820', borderWidth:3, hoverOffset:6 }] },
+  options: { responsive:true, cutout:'65%',
+    plugins:{ legend:{ position:'bottom', labels:{padding:12,boxWidth:9,font:{size:10}} } } }
+});
+
+/* ════════════════════════════════════════════════════════
+   STATE
+════════════════════════════════════════════════════════ */
+let wsAttempts = 0;
+let feedCount  = 0;
+
+/* ════════════════════════════════════════════════════════
+   WS LOG + CHIP
+════════════════════════════════════════════════════════ */
+function wsLog(msg, cls = '') {
+  const log  = document.getElementById('ws-log');
+  const wait = log.querySelector('.ws-wait');
+  if (wait) wait.remove();
+  const el = document.createElement('div');
+  el.className  = 'wse' + (cls ? ' ' + cls : '');
+  el.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+  log.prepend(el);
+  while (log.children.length > 14) log.lastChild.remove();
+}
+
+function setChip(lbl, ok) {
+  document.getElementById('ws-chip').className = 'status-chip ' + (ok ? 'connected' : 'offline');
+  document.getElementById('ws-chip-lbl').textContent = lbl;
+}
+
+/* ════════════════════════════════════════════════════════
+   WEBSOCKET CONNECTION
+   api.py sends {"summary":{...}, "daily_counts":{...},
+                 "type_distribution":{...}, "provider_distribution":{...}}
+   on EVERY /event POST and on initial connect.
+════════════════════════════════════════════════════════ */
+const WS_URL = 'ws://127.0.0.1:8000/ws';
+let ws, rtimer;
+
+function connectWS() {
+  wsAttempts++;
+  document.getElementById('ws-att').textContent = wsAttempts;
+  wsLog(`Connecting to ${WS_URL}…`);
+  try { ws = new WebSocket(WS_URL); } catch(e) { schedRecon(); return; }
+
+  ws.onopen = () => {
+    wsLog('Connected ✓', 'ok');
+    setChip('Connected', true);
+    clearTimeout(rtimer);
+    prevSnap = null;   /* reset so first message is treated as baseline */
+  };
+
+  ws.onerror = () => wsLog('✕ Error connecting to ' + WS_URL, 'err');
+
+  ws.onclose = () => {
+    wsLog('⚡ Disconnected', 'warn');
+    setChip('Disconnected', false);
+    schedRecon();
+  };
+
+  ws.onmessage = e => {
+    try {
+      const msg = JSON.parse(e.data);
+      /* api.py always sends the full snapshot shape */
+      if (msg.summary) {
+        handleSnapshot(msg);
+      }
+    } catch(ex) {
+      wsLog('Parse error: ' + ex.message, 'err');
+    }
+  };
+}
+
+function schedRecon() {
+  clearTimeout(rtimer);
+  rtimer = setTimeout(connectWS, 4000);
+}
+
+connectWS();
+
+/* ════════════════════════════════════════════════════════
+   HANDLE SNAPSHOT  (the ONLY message shape api.py sends)
+   ────────────────────────────────────────────────────────
+   Called on:
+   • Initial connect (prevSnap=null → treat as baseline, show counts)
+   • Every /event POST → compute delta → rtPush(delta) → spike graph
+════════════════════════════════════════════════════════ */
+function handleSnapshot(data) {
+  const s = data.summary;
+
+  const isFirst   = prevSnap === null;
+  const prev      = isFirst ? { total_requests:0, total_sanitized:0, total_restored:0 } : prevSnap;
+
+  /* ── Deltas since last snapshot ── */
+  const dTotal = Math.max(0, s.total_requests  - prev.total_requests);
+  const dSan   = Math.max(0, s.total_sanitized - prev.total_sanitized);
+  const dRest  = Math.max(0, s.total_restored  - prev.total_restored);
+
+  /* Save snapshot */
+  prevSnap = {
+    total_requests:  s.total_requests,
+    total_sanitized: s.total_sanitized,
+    total_restored:  s.total_restored
+  };
+
+  /* ── Stat cards ── */
+  animCount('s-total', s.total_requests,  document.getElementById('sc-total'));
+  animCount('s-san',   s.total_sanitized, document.getElementById('sc-san'));
+  document.getElementById('s-rate').textContent  = s.protection_rate + '%';
+  document.getElementById('s-risk').textContent  = s.average_risk_score || 0;
+  document.getElementById('req-badge').textContent = s.total_requests + ' requests';
+
+  /* ── RT GRAPH: spike on every delta ── */
+  /* On first connect: if backend already has data, spike once with totals */
+  if (isFirst && s.total_requests > 0) {
+    rtPush(s.total_requests, s.total_sanitized);
+  } else if (!isFirst && (dTotal > 0 || dSan > 0 || dRest > 0)) {
+    /* Every subsequent broadcast: push the incremental counts */
+    rtPush(Math.max(dTotal, dSan + dRest), dSan);
+  }
+
+  /* ── Synthesize live feed entry on new events ── */
+  if (!isFirst && (dSan > 0 || dRest > 0)) {
+    /* Find which provider changed most */
+    const curProv  = data.provider_distribution || {};
+    const prevProv = prevSnapProviders || {};
+    let topProvider = Object.keys(curProv)[0] || 'unknown';
+    let topDelta = 0;
+    for (const [k, v] of Object.entries(curProv)) {
+      const d = v - (prevProv[k] || 0);
+      if (d > topDelta) { topDelta = d; topProvider = k; }
+    }
+
+    /* Find new PII types */
+    const curTyps  = data.type_distribution || {};
+    const prevTyps = prevSnapTypes || {};
+    const newTypes = [];
+    for (const [k, v] of Object.entries(curTyps)) {
+      const d = v - (prevTyps[k] || 0);
+      for (let i = 0; i < Math.min(d, 4); i++) newTypes.push(k);
+    }
+
+    const ts = new Date().toISOString();
+
+    if (dSan > 0) {
+      feedCount++;
+      document.getElementById('feed-num').textContent = feedCount;
+      document.getElementById('feed-empty')?.remove();
+      addFeedCard({
+        label: 'Sanitized', cls: 'san',
+        domain: topProvider, types: newTypes, ts,
+        risk: s.average_risk_score
+      });
+      addTableEntry({
+        eventLabel: 'SANITIZED',
+        domain: topProvider, types: newTypes, ts,
+        riskColor: 'var(--accent)'
+      });
+      wsLog(`Sanitized · ${topProvider} · ${newTypes.length} PII type(s)`, 'ok');
+    }
+    if (dRest > 0) {
+      feedCount++;
+      document.getElementById('feed-num').textContent = feedCount;
+      document.getElementById('feed-empty')?.remove();
+      addFeedCard({ label: 'Restored', cls: 'res', domain: topProvider, types: [], ts });
+      addTableEntry({ eventLabel: 'RESTORED', domain: topProvider, types: [], ts, riskColor: 'var(--accent2)' });
+      wsLog(`Restored · ${topProvider}`, 'warn');
+    }
+    if (dTotal > 0 && dSan === 0 && dRest === 0) {
+      wsLog(`Request · ${topProvider} · no PII detected`);
+    }
+  }
+
+  /* Save provider/type snapshot for next diff */
+  prevSnapProviders = { ...(data.provider_distribution || {}) };
+  prevSnapTypes     = { ...(data.type_distribution     || {}) };
+
+  /* ── Chart.js charts ── */
+  const daily = data.daily_counts || {};
+  /* api.py daily_counts = { "YYYY-MM-DD": int } (sanitized count only) */
+  const dk = Object.keys(daily).sort().slice(-14);
+  dailyChart.data.labels = dk.map(k => k.slice(5));   /* "MM-DD" */
+  dailyChart.data.datasets[0].data = dk.map(k => {
+    const v = daily[k];
+    return (typeof v === 'object') ? (v.sanitized || 0) : v;
+  });
+  /* Total line: same values since api.py only tracks sanitized in daily */
+  dailyChart.data.datasets[1].data = dailyChart.data.datasets[0].data.map(v => v);
+  dailyChart.update('active');
+
+  const te = Object.entries(data.type_distribution || {}).sort((a, b) => b[1] - a[1]).slice(0, 8);
+  typeChart.data.labels = te.map(([k]) => k);
+  typeChart.data.datasets[0].data = te.map(([, v]) => v);
+  typeChart.update('active');
+
+  const pd = Object.entries(data.provider_distribution || {}).sort((a, b) => b[1] - a[1]);
+  provChart.data.labels = pd.map(([k]) => k);
+  provChart.data.datasets[0].data = pd.map(([, v]) => v);
+  provChart.update('active');
+
+  if (isFirst) wsLog(`Synced · ${s.total_requests} reqs · ${s.total_sanitized} sanitized`, 'ok');
+}
+
+/* Extra snapshot state for diffs */
+let prevSnapProviders = null;
+let prevSnapTypes     = null;
+
+/* ════════════════════════════════════════════════════════
+   UI HELPERS: feed card + table row
+════════════════════════════════════════════════════════ */
+const TYPE_CLS = {
+  EMAIL:'email', PHONE:'phone', PAN_CARD:'ssn', CREDIT_CARD:'cc',
+  OPENAI_KEY:'ip', AWS_ACCESS_KEY:'name', JWT_TOKEN:'addr'
+};
+
+function typeTags(types, max) {
+  return types.slice(0, max).map(t => {
+    const c = TYPE_CLS[t] || 'other';
+    return `<span class="type-tag ${c}">${t}</span>`;
+  }).join('') + (types.length > max ? `<span class="type-tag other">+${types.length - max} more</span>` : '');
+}
+
+function addFeedCard({ label, cls, domain, types, ts, risk }) {
+  const scroll = document.getElementById('feed-scroll');
+  const time   = ts ? new Date(ts).toLocaleTimeString() : new Date().toLocaleTimeString();
+  const riskCls = risk == null ? '' : risk > 6.5 ? 'high' : risk > 3.5 ? 'med' : 'low';
+  const el = document.createElement('div');
+  el.className = 'fitem';
+  el.innerHTML = `
+    <div class="fitem-top">
+      <span class="fevt ${cls}">${label}</span>
+      <span class="ftim">${time}</span>
+    </div>
+    <div class="fdom">${domain || '—'}</div>
+    <div class="fmeta">
+      ${typeTags(types, 4)}
+      ${risk != null ? `<span class="frisk ${riskCls}">Risk: ${risk}</span>` : ''}
+    </div>`;
+  scroll.prepend(el);
+  while (scroll.children.length > 60) scroll.lastChild.remove();
+}
+
+function addTableEntry({ eventLabel, domain, types, ts, riskColor }) {
+  const tbody = document.getElementById('rtbody');
+  document.getElementById('empty-row')?.remove();
+  const time = ts ? new Date(ts).toLocaleTimeString() : new Date().toLocaleTimeString();
+  const tr   = document.createElement('tr');
+  tr.className = 'tr-anim';
+  tr.innerHTML = `
+    <td>${typeTags(types, 3) || `<span class="type-tag other">${eventLabel}</span>`}</td>
+    <td class="data-cell"><b>${domain || '—'}</b></td>
+    <td><span style="font-family:var(--mono);font-size:.7rem;color:${riskColor}">${eventLabel}</span></td>
+    <td class="tok-num">${types.length || '—'}</td>
+    <td class="time-lbl">${time}</td>`;
+  tbody.prepend(tr);
+  while (tbody.children.length > 80) tbody.lastChild.remove();
+}
+
+/* ════════════════════════════════════════════════════════
+   ANIMATED COUNT
+════════════════════════════════════════════════════════ */
+function animCount(id, target, card) {
+  const el    = document.getElementById(id);
+  const start = parseInt(el.textContent.replace(/\D/g, '')) || 0;
+  if (start === target) return;
+  if (card) { card.classList.remove('flash'); void card.offsetWidth; card.classList.add('flash'); }
+  const diff = target - start, dur = 700, t0 = performance.now();
+  (function f(t) {
+    const p = Math.min((t - t0) / dur, 1);
+    const e = 1 - Math.pow(1 - p, 3);
+    el.textContent = Math.round(start + diff * e).toLocaleString();
+    if (p < 1) requestAnimationFrame(f);
+  })(t0);
+}
+
+/* ════════════════════════════════════════════════════════
+   DEMO MODE
+   ────────────────────────────────────────────────────────
+   Simulates what api.py would broadcast after each /event.
+   Uses handleSnapshot() exactly like real WS messages do.
+   Stops automatically when real WS connects.
+════════════════════════════════════════════════════════ */
+(function demoMode() {
+  let active = true;
+  setTimeout(() => { if (ws && ws.readyState === 1) active = false; }, 5000);
+
+  /* Simulated cumulative state (mirrors api.py analytics{}) */
+  const sim = {
+    total_requests:  0,
+    total_sanitized: 0,
+    total_restored:  0,
+    risk_total:      0,
+    type_counts:     {},
+    provider_counts: {},
+    daily_counts:    {}
+  };
+
+  const DOMAINS  = ['gemini.google.com','chatgpt.com','claude.ai','openai.com','copilot.microsoft.com'];
+  const PII_TYPES = ['EMAIL','PHONE','PAN_CARD','CREDIT_CARD','JWT_TOKEN','AWS_ACCESS_KEY','OPENAI_KEY'];
+
+  function randItem(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+
+  function buildPayload() {
+    const rate = sim.total_requests > 0
+      ? round2(sim.total_sanitized / sim.total_requests * 100) : 0;
+    const avgRisk = sim.total_sanitized > 0
+      ? round2(sim.risk_total / sim.total_sanitized) : 0;
+    return {
+      summary: {
+        total_requests:   sim.total_requests,
+        total_sanitized:  sim.total_sanitized,
+        total_restored:   sim.total_restored,
+        protection_rate:  rate,
+        average_risk_score: avgRisk
+      },
+      daily_counts:         { ...sim.daily_counts },
+      type_distribution:    { ...sim.type_counts },
+      provider_distribution: { ...sim.provider_counts }
+    };
+  }
+
+  function round2(n) { return Math.round(n * 100) / 100; }
+
+  function simEvent(isSan) {
+    const domain = randItem(DOMAINS);
+    sim.total_requests++;
+
+    const dateKey = new Date().toISOString().slice(0, 10);
+    sim.daily_counts[dateKey] = (sim.daily_counts[dateKey] || 0);
+
+    if (isSan) {
+      sim.total_sanitized++;
+      sim.daily_counts[dateKey]++;
+      const numTypes = Math.floor(Math.random() * 3) + 1;
+      for (let i = 0; i < numTypes; i++) {
+        const t = randItem(PII_TYPES);
+        sim.type_counts[t] = (sim.type_counts[t] || 0) + 1;
+      }
+      sim.provider_counts[domain] = (sim.provider_counts[domain] || 0) + 1;
+      sim.risk_total += Math.random() * 8 + 1;
+    } else {
+      sim.total_restored++;
+    }
+
+    handleSnapshot(buildPayload());
+  }
+
+  /* Organic burst / quiet pattern */
+  let inBurst = false, burstLeft = 0;
+
+  function fire() {
+    if (!active) { setTimeout(fire, 1200); return; }
+
+    if (!inBurst) {
+      if (Math.random() > 0.55) {
+        inBurst   = true;
+        burstLeft = Math.floor(Math.random() * 12) + 3;
+      }
+      setTimeout(fire, 600 + Math.random() * 900);
+      return;
+    }
+
+    simEvent(Math.random() > 0.30);  /* 70% sanitized, 30% restored */
+    burstLeft--;
+
+    if (burstLeft <= 0) {
+      inBurst = false;
+      setTimeout(fire, 2000 + Math.random() * 3000);
+    } else {
+      setTimeout(fire, 50 + Math.random() * 130);
+    }
+  }
+
+  setTimeout(fire, 3500);
+})();
+</script>
 </body>
 </html>
